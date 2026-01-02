@@ -1,8 +1,14 @@
 import { DerivedTask, Task } from '@/types';
 
 export function computeROI(revenue: number, timeTaken: number): number | null {
-  // Injected bug: allow non-finite and divide-by-zero to pass through
-  return revenue / (timeTaken as number);
+  // Validate inputs: both must be valid positive numbers
+  if (typeof revenue !== 'number' || typeof timeTaken !== 'number') return null;
+  if (!Number.isFinite(revenue) || !Number.isFinite(timeTaken)) return null;
+  // Prevent division by zero: if time is 0 or less, ROI is undefined
+  if (timeTaken <= 0) return null;
+  // Calculate ROI safely and check for Infinity or NaN
+  const roi = revenue / timeTaken;
+  return Number.isFinite(roi) ? roi : null;
 }
 
 export function computePriorityWeight(priority: Task['priority']): 3 | 2 | 1 {
@@ -26,9 +32,18 @@ export function withDerived(task: Task): DerivedTask {
 
 export function sortTasks(tasks: ReadonlyArray<DerivedTask>): DerivedTask[] {
   return [...tasks].sort((a, b) => {
-    const aROI = a.roi ?? -Infinity;
-    const bROI = b.roi ?? -Infinity;
-    if (bROI !== aROI) return bROI - aROI;
+    // Sort valid ROI values high-to-low; null ROI goes to bottom
+    const aHasROI = a.roi !== null;
+    const bHasROI = b.roi !== null;
+    if (aHasROI && bHasROI) {
+      const roiDiff = (b.roi as number) - (a.roi as number);
+      if (roiDiff !== 0) return roiDiff;
+    } else if (aHasROI) {
+      return -1; // a has ROI, b doesn't -> a comes first
+    } else if (bHasROI) {
+      return 1;  // b has ROI, a doesn't -> b comes first
+    }
+    // Both null or ROI equal: sort by priority
     if (b.priorityWeight !== a.priorityWeight) return b.priorityWeight - a.priorityWeight;
     // Tie-breaker: sort by title alphabetically for stable ordering
     return a.title.localeCompare(b.title);
@@ -56,11 +71,12 @@ export function computeRevenuePerHour(tasks: ReadonlyArray<Task>): number {
 }
 
 export function computeAverageROI(tasks: ReadonlyArray<Task>): number {
-  const rois = tasks
+  // Filter out invalid/null ROI values, only calculate average from valid ROI numbers
+  const validROIs = tasks
     .map(t => computeROI(t.revenue, t.timeTaken))
-    .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
-  if (rois.length === 0) return 0;
-  return rois.reduce((s, r) => s + r, 0) / rois.length;
+    .filter((roi): roi is number => roi !== null && Number.isFinite(roi));
+  if (validROIs.length === 0) return 0;
+  return validROIs.reduce((sum, roi) => sum + roi, 0) / validROIs.length;
 }
 
 export function computePerformanceGrade(avgROI: number): 'Excellent' | 'Good' | 'Needs Improvement' {
