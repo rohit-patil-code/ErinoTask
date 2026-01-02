@@ -4,7 +4,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import { DerivedTask, Task } from '@/types';
-import TaskForm from '@/components/TaskForm';
+import TaskForm, { TaskInput } from '@/components/TaskForm';
 import TaskDetailsDialog from '@/components/TaskDetailsDialog';
 
 interface Props {
@@ -30,12 +30,28 @@ export default function TaskTable({ tasks, onAdd, onUpdate, onDelete }: Props) {
     setOpenForm(true);
   };
 
-  const handleSubmit = (value: Omit<Task, 'id'> & { id?: string }) => {
+  const handleSubmit = (value: TaskInput) => {
     if (value.id) {
-      const { id, ...rest } = value as Task;
-      onUpdate(id, rest);
+      // Editing: preserve createdAt from original task
+      onUpdate(value.id, {
+        title: value.title,
+        revenue: value.revenue,
+        timeTaken: value.timeTaken,
+        priority: value.priority,
+        status: value.status,
+        notes: value.notes,
+      });
     } else {
-      onAdd(value as Omit<Task, 'id'>);
+      // Adding: create new task with createdAt timestamp
+      onAdd({
+        title: value.title,
+        revenue: value.revenue,
+        timeTaken: value.timeTaken,
+        priority: value.priority,
+        status: value.status,
+        notes: value.notes,
+        createdAt: new Date().toISOString(),
+      });
     }
   };
 
